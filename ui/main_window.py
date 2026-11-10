@@ -1,10 +1,14 @@
 """
 ui/main_window.py
-Main application window for Ojo Hermano.
+Main application window for Ojo Hermano — Brother Eye theme.
 """
-from PyQt6.QtCore import Qt, QDateTime
+import os
+import sys
+
+from PyQt6.QtCore import Qt, QDateTime, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -17,6 +21,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -26,89 +31,8 @@ from ui.widgets.gauge import GaugeWidget
 from ui.widgets.sparkline import SparklineWidget
 from ui.sessions_panel import SessionsPanel
 from ui.settings_dialog import SettingsDialog
-
-# ---------------------------------------------------------------------------
-# Dark stylesheet
-# ---------------------------------------------------------------------------
-DARK_STYLE = """
-QMainWindow, QWidget#centralWidget, QScrollArea, QWidget {
-    background-color: #0f172a;
-    color: #e2e8f0;
-}
-QScrollArea {
-    border: none;
-}
-QGroupBox {
-    background-color: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    margin-top: 10px;
-    padding-top: 6px;
-    font-weight: bold;
-    color: #94a3b8;
-    font-size: 11px;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    left: 10px;
-    padding: 0 4px;
-}
-QProgressBar {
-    background-color: #0f172a;
-    border: 1px solid #334155;
-    border-radius: 3px;
-    height: 8px;
-    text-align: right;
-}
-QProgressBar::chunk {
-    background-color: #6366f1;
-    border-radius: 3px;
-}
-QListWidget {
-    background-color: #0f172a;
-    border: 1px solid #334155;
-    border-radius: 4px;
-    color: #e2e8f0;
-    font-size: 11px;
-}
-QListWidget::item:selected {
-    background-color: #334155;
-}
-QScrollBar:vertical {
-    background: #1e293b;
-    width: 6px;
-    border-radius: 3px;
-}
-QScrollBar::handle:vertical {
-    background: #334155;
-    border-radius: 3px;
-    min-height: 20px;
-}
-QTabWidget::pane {
-    border: 1px solid #334155;
-    border-radius: 6px;
-}
-QTabBar::tab {
-    background: #1e293b;
-    color: #64748b;
-    padding: 6px 18px;
-    border: 1px solid #334155;
-    border-bottom: none;
-    border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
-    font-size: 11px;
-    font-weight: bold;
-}
-QTabBar::tab:selected {
-    background: #0f172a;
-    color: #e2e8f0;
-    border-bottom: 2px solid #38bdf8;
-}
-QTabBar::tab:hover:!selected {
-    color: #94a3b8;
-}
-"""
+from ui.theme import DARK_STYLESHEET
+from ui import theme
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +46,7 @@ class _KVRow(QWidget):
         lay.setSpacing(6)
 
         key_lbl = QLabel(key + ":")
-        key_lbl.setStyleSheet("color: #64748b; font-size: 10px;")
+        key_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 10px;")
         key_lbl.setFixedWidth(118)
         key_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -131,7 +55,7 @@ class _KVRow(QWidget):
         f.setBold(True)
         f.setPointSize(10)
         self.val_lbl.setFont(f)
-        self._default_color = accent or "#e2e8f0"
+        self._default_color = accent or theme.TEXT
         self.val_lbl.setStyleSheet(f"color: {self._default_color};")
 
         lay.addWidget(key_lbl)
@@ -149,9 +73,9 @@ class _KVRow(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Ojo Hermano")
+        self.setWindowTitle("👁 Ojo Hermano")
         self.setMinimumSize(820, 720)
-        self.setStyleSheet(DARK_STYLE)
+        self.setStyleSheet(DARK_STYLESHEET)
         self._settings_dialog: "SettingsDialog | None" = None
         self._settings: dict = SettingsDialog.DEFAULTS.copy()
         self._build_ui()
@@ -178,20 +102,50 @@ class MainWindow(QMainWindow):
         self._sessions_panel = SessionsPanel()
         self._tabs.addTab(self._sessions_panel, "🎮  Sesiones")
 
-        # Tab 3: Settings
+        # Tab 3: Settings (expanded)
         settings_btn_widget = QWidget()
         settings_lay = QVBoxLayout(settings_btn_widget)
         settings_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        settings_lay.setSpacing(14)
+
+        # Open settings dialog button
         open_settings_btn = QPushButton("⚙  Abrir configuración")
         open_settings_btn.setStyleSheet(
-            "QPushButton{background:#1e293b;border:1px solid #334155;"
-            "border-radius:6px;color:#38bdf8;padding:8px 20px;font-size:12px;font-weight:bold;}"
-            "QPushButton:hover{background:#334155;}"
+            f"QPushButton{{background:{theme.CARD};border:1px solid {theme.BORDER};"
+            f"border-radius:6px;color:{theme.ACCENT};padding:8px 20px;"
+            "font-size:12px;font-weight:bold;}"
+            f"QPushButton:hover{{background:{theme.CARD_HOVER};}}"
         )
         open_settings_btn.setFixedWidth(220)
         open_settings_btn.clicked.connect(self._open_settings)
         settings_lay.addSpacing(20)
         settings_lay.addWidget(open_settings_btn)
+
+        # Autostart with Windows
+        self._autostart_cb = QCheckBox("🚀  Iniciar con Windows")
+        self._autostart_cb.setChecked(self._check_autostart())
+        self._autostart_cb.toggled.connect(self._toggle_autostart)
+        settings_lay.addWidget(self._autostart_cb)
+
+        # Overlay opacity slider
+        opacity_row = QHBoxLayout()
+        opacity_lbl = QLabel("Opacidad del HUD overlay:")
+        opacity_lbl.setStyleSheet(f"color:{theme.TEXT}; font-size:11px;")
+        self._opacity_val_lbl = QLabel("88%")
+        self._opacity_val_lbl.setStyleSheet(f"color:{theme.ACCENT}; font-size:11px; font-weight:bold;")
+        opacity_row.addWidget(opacity_lbl)
+        opacity_row.addStretch()
+        opacity_row.addWidget(self._opacity_val_lbl)
+        settings_lay.addLayout(opacity_row)
+
+        self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self._opacity_slider.setRange(40, 100)
+        self._opacity_slider.setValue(88)
+        self._opacity_slider.setFixedWidth(240)
+        self._opacity_slider.setToolTip("Ajusta la opacidad del HUD flotante (40%–100%)")
+        self._opacity_slider.valueChanged.connect(self._on_opacity_changed)
+        settings_lay.addWidget(self._opacity_slider)
+
         self._tabs.addTab(settings_btn_widget, "⚙  Ajustes")
 
     # ------------------------------------------------------------------ dashboard
@@ -220,19 +174,19 @@ class MainWindow(QMainWindow):
         tf.setBold(True)
         tf.setPointSize(17)
         title.setFont(tf)
-        title.setStyleSheet("color: #38bdf8;")
+        title.setStyleSheet(f"color: {theme.ACCENT};")
 
         self._dot = QLabel("●")
-        self._dot.setStyleSheet("color: #22c55e; font-size: 15px;")
+        self._dot.setStyleSheet(f"color: {theme.OK}; font-size: 15px;")
 
         self._ts = QLabel("—")
-        self._ts.setStyleSheet("color: #64748b; font-size: 11px;")
+        self._ts.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px;")
 
         # Session active badge
         self._session_badge = QLabel("🎮 Sesión activa")
         self._session_badge.setStyleSheet(
-            "background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.4);"
-            "border-radius: 10px; color: #22c55e; font-size: 10px; font-weight: bold;"
+            f"background: rgba(0,153,255,0.12); border: 1px solid rgba(0,153,255,0.4);"
+            f"border-radius: 10px; color: {theme.ACCENT}; font-size: 10px; font-weight: bold;"
             "padding: 2px 10px;"
         )
         self._session_badge.hide()
@@ -240,8 +194,8 @@ class MainWindow(QMainWindow):
         # Predictive alert banner
         self._alert_banner = QLabel()
         self._alert_banner.setStyleSheet(
-            "background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);"
-            "border-radius: 7px; color: #f87171; font-size: 11px; font-weight: bold;"
+            f"background: rgba(255,34,68,0.12); border: 1px solid rgba(255,34,68,0.4);"
+            f"border-radius: 7px; color: {theme.DANGER}; font-size: 11px; font-weight: bold;"
             "padding: 6px 12px;"
         )
         self._alert_banner.setWordWrap(True)
@@ -258,7 +212,7 @@ class MainWindow(QMainWindow):
         # ── Gauge row ───────────────────────────────────────────────────
         gauge_card = QWidget()
         gauge_card.setStyleSheet(
-            "background: #1e293b; border-radius: 8px; border: 1px solid #334155;"
+            f"background: {theme.CARD}; border-radius: 8px; border: 1px solid {theme.BORDER};"
         )
         g_lay = QHBoxLayout(gauge_card)
         g_lay.setContentsMargins(8, 6, 8, 6)
@@ -291,24 +245,24 @@ class MainWindow(QMainWindow):
             box_layout.addWidget(row)
             self._kv[key] = row
 
-        _kv(gbl, "Temperature",    "gpu_temp",    "#f59e0b")
-        _kv(gbl, "Core Load",      "gpu_load",    "#f59e0b")
-        _kv(gbl, "D3D 3D Load",    "gpu_d3d",     "#f59e0b")
+        _kv(gbl, "Temperature",    "gpu_temp",    theme.WARN)
+        _kv(gbl, "Core Load",      "gpu_load",    theme.WARN)
+        _kv(gbl, "D3D 3D Load",    "gpu_d3d",     theme.WARN)
         _kv(gbl, "Core Clock",     "gpu_clock")
         _kv(gbl, "Memory Clock",   "gpu_mem_clk")
-        _kv(gbl, "VRAM Used",      "gpu_vram",    "#38bdf8")
+        _kv(gbl, "VRAM Used",      "gpu_vram",    theme.ACCENT)
         _kv(gbl, "Core Voltage",   "gpu_voltage")
         _kv(gbl, "Fan",            "gpu_fan")
-        _kv(gbl, "FPS Factor",     "gpu_fps",     "#22c55e")
+        _kv(gbl, "FPS Factor",     "gpu_fps",     theme.OK)
 
         # System
         sys_box = QGroupBox("System")
         sbl     = QVBoxLayout(sys_box)
         sbl.setSpacing(2)
-        _kv(sbl, "CPU Total",     "cpu_load",  "#6366f1")
+        _kv(sbl, "CPU Total",     "cpu_load",  theme.ACCENT)
         _kv(sbl, "Max Core",      "cpu_max")
         _kv(sbl, "Package Temp",  "cpu_temp")
-        _kv(sbl, "RAM Used",      "ram_used",  "#22c55e")
+        _kv(sbl, "RAM Used",      "ram_used",  theme.OK)
         _kv(sbl, "RAM Free",      "ram_avail")
         _kv(sbl, "RAM Load",      "ram_load")
 
@@ -316,8 +270,8 @@ class MainWindow(QMainWindow):
         net_box = QGroupBox("Network")
         nbl     = QVBoxLayout(net_box)
         nbl.setSpacing(2)
-        _kv(nbl, "Download",    "net_dl",  "#38bdf8")
-        _kv(nbl, "Upload",      "net_ul",  "#38bdf8")
+        _kv(nbl, "Download",    "net_dl",  theme.ACCENT)
+        _kv(nbl, "Upload",      "net_ul",  theme.ACCENT)
         _kv(nbl, "Utilization", "net_pct")
 
         detail_row.addWidget(gpu_box, 2)
@@ -336,7 +290,7 @@ class MainWindow(QMainWindow):
         for i in range(8):
             r, c = divmod(i, 4)
             lbl = QLabel(f"C{i+1}")
-            lbl.setStyleSheet("color: #64748b; font-size: 9px;")
+            lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 9px;")
             lbl.setFixedWidth(18)
 
             bar = QProgressBar()
@@ -346,7 +300,7 @@ class MainWindow(QMainWindow):
             bar.setFixedHeight(8)
 
             pct = QLabel("0%")
-            pct.setStyleSheet("color: #94a3b8; font-size: 9px;")
+            pct.setStyleSheet(f"color: {theme.MUTED}; font-size: 9px;")
             pct.setFixedWidth(26)
             pct.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -365,10 +319,10 @@ class MainWindow(QMainWindow):
         spark_lay = QVBoxLayout(spark_box)
         spark_lay.setContentsMargins(6, 6, 6, 6)
         self._spark = SparklineWidget()
-        self._spark.add_series("gpu_load", "#f59e0b", "GPU",  scale=1.0)
-        self._spark.add_series("cpu_load", "#6366f1", "CPU",  scale=1.0)
-        self._spark.add_series("ram_load", "#22c55e", "RAM",  scale=1.0)
-        self._spark.add_series("net_pct",  "#38bdf8", "Net",  scale=1.0)
+        self._spark.add_series("gpu_load", theme.WARN,   "GPU",  scale=1.0)
+        self._spark.add_series("cpu_load", theme.ACCENT,  "CPU",  scale=1.0)
+        self._spark.add_series("ram_load", theme.OK,      "RAM",  scale=1.0)
+        self._spark.add_series("net_pct",  "#38bdf8",     "Net",  scale=1.0)
         spark_lay.addWidget(self._spark)
         root.addWidget(spark_box)
 
@@ -378,7 +332,7 @@ class MainWindow(QMainWindow):
         self._tdr_list = QListWidget()
         self._tdr_list.setMaximumHeight(110)
         placeholder = QListWidgetItem("No TDR events detected.")
-        placeholder.setForeground(QColor("#64748b"))
+        placeholder.setForeground(QColor(theme.MUTED))
         self._tdr_list.addItem(placeholder)
         tdr_lay.addWidget(self._tdr_list)
         root.addWidget(tdr_box)
@@ -397,12 +351,12 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _heat(val, warn: float = 70, crit: float = 85) -> str:
         if val is None:
-            return "#e2e8f0"
+            return theme.TEXT
         if val >= crit:
-            return "#ef4444"
+            return theme.DANGER
         if val >= warn:
-            return "#f59e0b"
-        return "#22c55e"
+            return theme.WARN
+        return theme.OK
 
     @staticmethod
     def _fmt_speed(val) -> str:
@@ -499,7 +453,7 @@ class MainWindow(QMainWindow):
         eid  = event.get("event_id",  "?")
         desc = event.get("description", "")[:90]
         item = QListWidgetItem(f"⚠  [{ts}]  ID {eid}: {desc}")
-        item.setForeground(QColor("#ef4444"))
+        item.setForeground(QColor(theme.DANGER))
         self._tdr_list.insertItem(0, item)
 
     # ------------------------------------------------------------------ session slots
@@ -545,9 +499,55 @@ class MainWindow(QMainWindow):
         self._settings = s
         self.settings_changed_signal.emit(s)
 
-    # Signal for main.py to pick up settings changes
-    from PyQt6.QtCore import pyqtSignal as _sig
-    settings_changed_signal = _sig(dict)
+    # ------------------------------------------------------------------ opacity
+    def _on_opacity_changed(self, value: int):
+        pct = value / 100.0
+        self._opacity_val_lbl.setText(f"{value}%")
+        self.overlay_opacity_changed.emit(pct)
+
+    # ------------------------------------------------------------------ autostart
+    @staticmethod
+    def _check_autostart() -> bool:
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, winreg.KEY_QUERY_VALUE,
+            )
+            winreg.QueryValueEx(key, "OjoHermano")
+            winreg.CloseKey(key)
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _toggle_autostart(enabled: bool):
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE,
+            )
+            app_name = "OjoHermano"
+            if enabled:
+                exe    = sys.executable
+                script = os.path.abspath("main.py")
+                winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ,
+                                  f'"{exe}" "{script}"')
+            else:
+                try:
+                    winreg.DeleteValue(key, app_name)
+                except FileNotFoundError:
+                    pass
+            winreg.CloseKey(key)
+        except Exception as exc:
+            print(f"[Autostart] {exc}")
+
+    # ------------------------------------------------------------------ signals
+    settings_changed_signal  = pyqtSignal(dict)
+    overlay_opacity_changed  = pyqtSignal(float)
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, event):  # noqa: N802

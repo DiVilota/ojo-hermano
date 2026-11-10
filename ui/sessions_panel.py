@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ui import theme
+
 
 def _fmt(val, suffix="", decimals=0, fallback="—"):
     if val is None:
@@ -34,11 +36,11 @@ class _SessionBarChart(QWidget):
     MAX_BARS = 20
     WARN_TEMP  = 70.0
     CRIT_TEMP  = 85.0
-    BAR_COLOR_OK   = QColor("#22c55e")
-    BAR_COLOR_WARN = QColor("#f59e0b")
-    BAR_COLOR_CRIT = QColor("#ef4444")
-    GRID_COLOR     = QColor("#1e293b")
-    TEXT_COLOR     = QColor("#64748b")
+    BAR_COLOR_OK   = QColor(theme.OK)
+    BAR_COLOR_WARN = QColor(theme.WARN)
+    BAR_COLOR_CRIT = QColor(theme.DANGER)
+    GRID_COLOR     = QColor(theme.BORDER)
+    TEXT_COLOR     = QColor(theme.MUTED)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -65,14 +67,14 @@ class _SessionBarChart(QWidget):
         max_t   = 110.0
 
         # grid lines at 70 and 85
-        p.setPen(QPen(QColor("#334155"), 1, Qt.PenStyle.DashLine))
+        p.setPen(QPen(QColor(theme.BORDER), 1, Qt.PenStyle.DashLine))
         for t_line in (70, 85):
             y = pad_t + chart_h - int(chart_h * t_line / max_t)
             p.drawLine(pad_l, y, W - pad_r, y)
             p.setPen(QPen(self.TEXT_COLOR))
             p.setFont(QFont("", 7))
             p.drawText(2, y + 4, f"{t_line}°")
-            p.setPen(QPen(QColor("#334155"), 1, Qt.PenStyle.DashLine))
+            p.setPen(QPen(QColor(theme.BORDER), 1, Qt.PenStyle.DashLine))
 
         # bars
         for i, s in enumerate(self._data):
@@ -98,7 +100,7 @@ class _StatCard(QWidget):
     def __init__(self, label: str, color: str = "#e2e8f0", parent=None):
         super().__init__(parent)
         self.setStyleSheet(
-            "background: #1e293b; border: 1px solid #334155; border-radius: 8px;"
+            f"background: {theme.CARD}; border: 1px solid {theme.ACCENT}; border-radius: 8px;"
         )
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 10)
@@ -113,7 +115,7 @@ class _StatCard(QWidget):
         self._val.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lbl = QLabel(label)
-        lbl.setStyleSheet("color: #64748b; font-size: 10px; background: transparent;")
+        lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 10px; background: transparent;")
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lay.addWidget(self._val)
@@ -136,6 +138,7 @@ class SessionsPanel(QWidget):
         "Peak CPU %",
         "Avg D3D %",
         "Avg FPS",
+        "TDR 💀",
         "Muestras",
     ]
 
@@ -158,10 +161,10 @@ class SessionsPanel(QWidget):
         cards_row = QHBoxLayout()
         cards_row.setSpacing(8)
 
-        self._c_total    = _StatCard("Sesiones totales",    "#38bdf8")
-        self._c_time     = _StatCard("Tiempo total",        "#6366f1")
-        self._c_peak_gpu = _StatCard("Pico GPU máximo",     "#f59e0b")
-        self._c_tdr      = _StatCard("TDR durante sesiones","#ef4444")
+        self._c_total    = _StatCard("Sesiones totales",    theme.ACCENT)
+        self._c_time     = _StatCard("Tiempo total",        theme.ACCENT)
+        self._c_peak_gpu = _StatCard("Pico GPU máximo",     theme.WARN)
+        self._c_tdr      = _StatCard("TDR durante sesiones",theme.DANGER)
 
         for c in (self._c_total, self._c_time, self._c_peak_gpu, self._c_tdr):
             c.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -171,8 +174,8 @@ class SessionsPanel(QWidget):
         # ── Active session banner (hidden unless gaming) ─────────────────
         self._active_banner = QLabel("🎮  Sesión activa")
         self._active_banner.setStyleSheet(
-            "background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.4);"
-            "border-radius: 6px; color: #22c55e; font-weight: bold; font-size: 12px;"
+            f"background: rgba(0,153,255,0.12); border: 1px solid rgba(0,153,255,0.4);"
+            f"border-radius: 6px; color: {theme.ACCENT}; font-weight: bold; font-size: 12px;"
             "padding: 6px 12px;"
         )
         self._active_banner.hide()
@@ -180,7 +183,7 @@ class SessionsPanel(QWidget):
 
         # ── Bar chart ────────────────────────────────────────────────────
         chart_lbl = QLabel("Pico GPU °C por sesión")
-        chart_lbl.setStyleSheet("color:#64748b; font-size:10px; font-weight:bold;")
+        chart_lbl.setStyleSheet(f"color:{theme.MUTED}; font-size:10px; font-weight:bold;")
         root.addWidget(chart_lbl)
         self._bar_chart = _SessionBarChart()
         root.addWidget(self._bar_chart)
@@ -197,15 +200,15 @@ class SessionsPanel(QWidget):
             QHeaderView.ResizeMode.Stretch
         )
         self._table.horizontalHeader().setStyleSheet(
-            "QHeaderView::section { background: #1e293b; color: #94a3b8;"
+            f"QHeaderView::section {{ background: {theme.CARD}; color: {theme.MUTED};"
             " font-size: 10px; font-weight: bold; border: none;"
-            " border-bottom: 1px solid #334155; padding: 4px; }"
+            f" border-bottom: 1px solid {theme.BORDER}; padding: 4px; }}"
         )
         self._table.setStyleSheet(
-            "QTableWidget { background: #0f172a; color: #e2e8f0;"
-            " gridline-color: #1e293b; border: none; font-size: 11px; }"
+            f"QTableWidget {{ background: {theme.BG}; color: {theme.TEXT};"
+            f" gridline-color: {theme.BORDER}; border: none; font-size: 11px; }}"
             "QTableWidget::item { padding: 4px 6px; }"
-            "QTableWidget::item:selected { background: #334155; }"
+            f"QTableWidget::item:selected {{ background: {theme.BORDER}; }}"
         )
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -217,17 +220,17 @@ class SessionsPanel(QWidget):
     @staticmethod
     def _heat_color(val, warn=70, crit=85) -> str:
         if val is None:
-            return "#94a3b8"
+            return theme.MUTED
         if val >= crit:
-            return "#ef4444"
+            return theme.DANGER
         if val >= warn:
-            return "#f59e0b"
-        return "#22c55e"
+            return theme.WARN
+        return theme.OK
 
-    def _make_item(self, text: str, color: str = "#e2e8f0",
+    def _make_item(self, text: str, color: str = None,
                    align=Qt.AlignmentFlag.AlignCenter) -> QTableWidgetItem:
         item = QTableWidgetItem(text)
-        item.setForeground(QColor(color))
+        item.setForeground(QColor(color or theme.TEXT))
         item.setTextAlignment(align)
         return item
 
@@ -273,19 +276,21 @@ class SessionsPanel(QWidget):
             peak_cpu = s.get("peak_cpu_load")
             avg_d3d  = s.get("avg_d3d_load")
             avg_fps  = s.get("avg_fps")
+            tdr      = s.get("tdr_count", 0) or 0
             samples  = s.get("sample_count", 0)
 
             cells = [
-                (date_str,                  "#e2e8f0"),
-                (dur,                       "#6366f1"),
-                (start_t,                   "#64748b"),
-                (end_t,                     "#64748b"),
+                (date_str,                  theme.TEXT),
+                (dur,                       theme.ACCENT),
+                (start_t,                   theme.MUTED),
+                (end_t,                     theme.MUTED),
                 (_fmt(peak_gpu, "°C"),      self._heat_color(peak_gpu, 70, 90)),
                 (_fmt(avg_gpu,  "°C"),      self._heat_color(avg_gpu,  65, 80)),
                 (_fmt(peak_cpu, "%"),       self._heat_color(peak_cpu)),
-                (_fmt(avg_d3d,  "%"),       "#a78bfa"),
-                (_fmt(avg_fps,  " fps", 1), "#22c55e" if avg_fps else "#64748b"),
-                (str(samples),              "#64748b"),
+                (_fmt(avg_d3d,  "%"),       theme.ACCENT),
+                (_fmt(avg_fps,  " fps", 1), theme.OK if avg_fps else theme.MUTED),
+                (str(tdr) if tdr else "—",  theme.DANGER if tdr else theme.MUTED),
+                (str(samples),              theme.MUTED),
             ]
 
             for col, (text, color) in enumerate(cells):
@@ -307,3 +312,5 @@ class SessionsPanel(QWidget):
         self._c_peak_gpu.set(f"{max(all_peaks):.0f}°C" if all_peaks else "—")
 
         self._c_tdr.set("—")   # TDR linking future feature
+        total_tdr = sum(s.get("tdr_count", 0) or 0 for s in self._sessions)
+        self._c_tdr.set(str(total_tdr) if total_tdr else "0")

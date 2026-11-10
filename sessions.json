@@ -1,0 +1,14 @@
+[
+  {
+    "start": "2026-11-10 17:20:35",
+    "end": "2026-11-10 17:21:05",
+    "duration_s": 30,
+    "duration_fmt": "0m 30s",
+    "peak_gpu_temp": 67.0,
+    "avg_gpu_temp": 66.1,
+    "peak_cpu_load": 46.5,
+    "avg_d3d_load": 11.8,
+    "avg_fps": null,
+    "sample_count": 11
+  }
+]

@@ -21,32 +21,55 @@ class TrayManager:
     # ------------------------------------------------------------------
     @staticmethod
     def _make_eye_icon() -> QIcon:
+        """Brother Eye icon: black bg, blue outer ring, blue iris, red pupil,
+        radiating surveillance scan lines."""
         px = QPixmap(32, 32)
         px.fill(Qt.GlobalColor.transparent)
 
         p = QPainter(px)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Eyelid outline (cyan ellipse background)
-        p.setBrush(QBrush(QColor("#38bdf8")))
+        # Black background
+        p.setBrush(QBrush(QColor("#000a14")))
         p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(1, 8, 30, 16)
+        p.drawEllipse(0, 0, 32, 32)
 
-        # White of eye
-        p.setBrush(QBrush(QColor("#e2e8f0")))
-        p.drawEllipse(3, 10, 26, 12)
+        # 4-6 radiating scan lines from outer edge — ACCENT at 40% opacity
+        from PyQt6.QtGui import QPen as _QPen
+        scan_color = QColor("#0099ff")
+        scan_color.setAlpha(100)   # ~40%
+        scan_pen = _QPen(scan_color, 1)
+        p.setPen(scan_pen)
+        import math
+        cx, cy = 16.0, 16.0
+        for angle_deg in range(0, 360, 60):
+            rad = math.radians(angle_deg)
+            x1 = cx + 14 * math.cos(rad)
+            y1 = cy + 14 * math.sin(rad)
+            x2 = cx + 10 * math.cos(rad)
+            y2 = cy + 10 * math.sin(rad)
+            p.drawLine(int(x1), int(y1), int(x2), int(y2))
 
-        # Dark pupil
-        p.setBrush(QBrush(QColor("#0f172a")))
-        p.drawEllipse(10, 11, 12, 10)
+        # Outer ring — ACCENT (#0099ff)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(QColor("#0099ff")))
+        p.drawEllipse(2, 2, 28, 28)
 
-        # Cyan iris
-        p.setBrush(QBrush(QColor("#38bdf8")))
-        p.drawEllipse(12, 13, 8, 6)
+        # Inner field — back to black
+        p.setBrush(QBrush(QColor("#000a14")))
+        p.drawEllipse(5, 5, 22, 22)
+
+        # Iris ring — ACCENT at 60% size
+        p.setBrush(QBrush(QColor("#0099ff")))
+        p.drawEllipse(7, 7, 18, 18)
+
+        # Pupil — DANGER red (#ff2244)
+        p.setBrush(QBrush(QColor("#ff2244")))
+        p.drawEllipse(12, 12, 8, 8)
 
         # Specular highlight
-        p.setBrush(QBrush(QColor("white")))
-        p.drawEllipse(14, 14, 3, 2)
+        p.setBrush(QBrush(QColor(255, 255, 255, 180)))
+        p.drawEllipse(14, 13, 3, 2)
 
         p.end()
         return QIcon(px)
@@ -56,9 +79,9 @@ class TrayManager:
         menu = QMenu()
         menu.setStyleSheet("""
             QMenu {
-                background-color: #1e293b;
-                color: #e2e8f0;
-                border: 1px solid #334155;
+                background-color: #001224;
+                color: #e8f4ff;
+                border: 1px solid #003d6e;
                 border-radius: 4px;
                 padding: 2px;
             }
@@ -67,11 +90,12 @@ class TrayManager:
                 border-radius: 3px;
             }
             QMenu::item:selected {
-                background-color: #334155;
+                background-color: #002040;
+                color: #0099ff;
             }
             QMenu::separator {
                 height: 1px;
-                background: #334155;
+                background: #003d6e;
                 margin: 3px 6px;
             }
         """)

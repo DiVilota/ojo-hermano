@@ -105,6 +105,7 @@ def main() -> None:
     from core.session_tracker import SessionTracker   # noqa: PLC0415
     from core.trend_analyzer  import TrendAnalyzer    # noqa: PLC0415
     session_tracker = SessionTracker()
+    session_tracker.set_tdr_store(store)   # inject for TDR correlation
     trend_analyzer  = TrendAnalyzer()
 
     # ── Signal wiring ─────────────────────────────────────────────────
@@ -115,13 +116,16 @@ def main() -> None:
     monitor.data_ready.connect(session_tracker.on_data)
     monitor.data_ready.connect(trend_analyzer.on_data)
 
-    # Trend analyzer → UI + tray
+    # Trend analyzer → UI only (banner); tray only for critical/throttle
     trend_analyzer.temp_rising.connect(main_win.on_trend_alert)
     trend_analyzer.temp_sustained.connect(main_win.on_trend_alert)
     trend_analyzer.throttle.connect(main_win.on_trend_alert)
     trend_analyzer.alert_cleared.connect(main_win.on_alert_cleared)
-    trend_analyzer.temp_rising.connect(
-        lambda a: tray.notify("⚠ GPU temperatura subiendo", a.get("message", "")[:120])
+    # Tray notifications: ONLY for sustained critical (>88°C) and confirmed throttle
+    # temp_rising is shown as silent banner only — no tray spam
+    trend_analyzer.temp_sustained.connect(
+        lambda a: tray.notify("🔥 GPU temperatura crítica", a.get("message", "")[:120])
+        if (a.get("gpu_temp") or 0) >= 88 else None
     )
     trend_analyzer.throttle.connect(
         lambda a: tray.notify("⚡ Throttling detectado", a.get("message", "")[:120])
@@ -133,6 +137,9 @@ def main() -> None:
         lambda s: setattr(session_tracker, "LOAD_THRESHOLD",
                           float(s.get("session_threshold", 15.0)))
     )
+
+    # Overlay opacity slider → overlay window
+    main_win.overlay_opacity_changed.connect(overlay.set_opacity)
 
     # Session tracker → UI + overlay + store
     session_tracker.session_started.connect(main_win.on_session_started)

@@ -25,12 +25,11 @@ class SessionTracker(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._active        = False
-        self._above_count   = 0    # consecutive samples above threshold
-        self._below_count   = 0    # consecutive samples below threshold (while active)
-
-        # Accumulated stats for the current session
+        self._above_count   = 0
+        self._below_count   = 0
         self._start_time:   datetime.datetime | None = None
         self._samples:      list[dict]               = []
+        self._tdr_store     = None   # injected from main.py: DataStore reference
 
     # ------------------------------------------------------------------ slot
     def on_data(self, snap: dict) -> None:
@@ -94,6 +93,7 @@ class SessionTracker(QObject):
             "avg_d3d_load":   round(sum(d3d_loads)  / len(d3d_loads),  1) if d3d_loads  else None,
             "avg_fps":        round(sum(fps_values) / len(fps_values), 1) if fps_values else None,
             "sample_count":   len(self._samples),
+            "tdr_count":      self._count_tdr_in_session(),
         }
 
         self._active     = False
@@ -112,6 +112,23 @@ class SessionTracker(QObject):
     @property
     def session_start(self) -> datetime.datetime | None:
         return self._start_time
+
+    def set_tdr_store(self, store) -> None:
+        """Inject DataStore reference for TDR correlation."""
+        self._tdr_store = store
+
+    def _count_tdr_in_session(self) -> int:
+        """Count TDR events that occurred during the current session window."""
+        if not self._tdr_store or not self._start_time:
+            return 0
+        start_str = self._start_time.strftime("%Y-%m-%d %H:%M:%S")
+        end_str   = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        count = 0
+        for ev in self._tdr_store.tdr_events:
+            ts = ev.get("timestamp", "")
+            if start_str <= ts <= end_str:
+                count += 1
+        return count
 
 
 def _fmt_duration(seconds: int) -> str:

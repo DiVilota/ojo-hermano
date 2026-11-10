@@ -19,6 +19,8 @@ from PyQt6.QtCore import Qt, QSize, QRectF
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
+from ui import theme
+
 
 class GaugeWidget(QWidget):
     def __init__(
@@ -98,20 +100,30 @@ class GaugeWidget(QWidget):
         pct = max(0.0, min(pct, 1.0))
         qt_fg_span = int(qt_bg_span * pct)
 
-        # --- Background arc ---
-        pen_bg = QPen(QColor("#334155"))
+        # --- Background arc (BORDER color — dim blue track) ---
+        pen_bg = QPen(QColor(theme.BORDER))
         pen_bg.setWidth(pen_w)
         pen_bg.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen_bg)
         painter.drawArc(rect, qt_start, qt_bg_span)
 
+        # --- Glow effect: wider translucent arc behind main arc (critical only) ---
+        if pct >= self._crit_pct and qt_fg_span != 0:
+            glow_color = QColor(theme.DANGER)
+            glow_color.setAlpha(40)              # ~16% opacity — subtle red halo
+            pen_glow = QPen(glow_color)
+            pen_glow.setWidth(pen_w + 7)
+            pen_glow.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen_glow)
+            painter.drawArc(rect, qt_start, qt_fg_span)
+
         # --- Foreground arc ---
         if pct >= self._crit_pct:
-            arc_color = QColor("#ef4444")
+            arc_color = QColor(theme.DANGER)
         elif pct >= self._warn_pct:
-            arc_color = QColor("#f59e0b")
+            arc_color = QColor(theme.WARN)
         else:
-            arc_color = QColor("#22c55e")
+            arc_color = QColor(theme.OK)
 
         if qt_fg_span != 0:
             pen_fg = QPen(arc_color)
@@ -125,7 +137,7 @@ class GaugeWidget(QWidget):
         val_font.setBold(True)
         val_font.setPointSize(max(10, int(arc_side / 5)))
         painter.setFont(val_font)
-        painter.setPen(QColor("#e2e8f0"))
+        painter.setPen(QColor(theme.TEXT))
 
         val_str = f"{int(self._value)}"
         text_rect = QRectF(cx - half, cy - half + pen_w, arc_side, arc_side - pen_w * 2)
@@ -135,7 +147,7 @@ class GaugeWidget(QWidget):
         unit_font = QFont()
         unit_font.setPointSize(8)
         painter.setFont(unit_font)
-        painter.setPen(QColor("#64748b"))
+        painter.setPen(QColor(theme.ACCENT_DIM))
         painter.drawText(
             QRectF(cx - half, cy + half * 0.25, arc_side, 18),
             Qt.AlignmentFlag.AlignCenter,
@@ -146,7 +158,7 @@ class GaugeWidget(QWidget):
         lbl_font = QFont()
         lbl_font.setPointSize(9)
         painter.setFont(lbl_font)
-        painter.setPen(QColor("#94a3b8"))
+        painter.setPen(QColor(theme.MUTED))
         painter.drawText(
             QRectF(0, h - label_h, w, label_h),
             Qt.AlignmentFlag.AlignCenter,

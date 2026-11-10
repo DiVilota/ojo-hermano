@@ -10,6 +10,7 @@ import os
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -24,6 +25,9 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from ui.theme import DARK_STYLESHEET
+from ui import theme
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -61,7 +65,7 @@ class SettingsDialog(QDialog):
         title = QLabel("⚙  Configuración")
         f = QFont(); f.setBold(True); f.setPointSize(13)
         title.setFont(f)
-        title.setStyleSheet("color: #38bdf8;")
+        title.setStyleSheet(f"color: {theme.ACCENT};")
         root.addWidget(title)
 
         # ── Alertas de temperatura ─────────────────────────────────────
@@ -134,17 +138,45 @@ class SettingsDialog(QDialog):
 
         for b in (btn_hw, btn_sess, btn_tdr):
             b.setStyleSheet(
-                "QPushButton { background:#1e293b; border:1px solid #334155;"
-                " border-radius:5px; color:#e2e8f0; padding:5px 10px; font-size:11px; }"
-                "QPushButton:hover { background:#334155; }"
+                f"QPushButton {{ background:{theme.CARD}; border:1px solid {theme.BORDER};"
+                f" border-radius:5px; color:{theme.TEXT}; padding:5px 10px; font-size:11px; }}"
+                f"QPushButton:hover {{ background:{theme.CARD_HOVER}; }}"
             )
             exp_lay.addWidget(b)
 
         root.addWidget(export_box)
 
+        # ── Sistema ────────────────────────────────────────────────────
+        sys_box = QGroupBox("Sistema")
+        sys_lay = QVBoxLayout(sys_box)
+        sys_lay.setSpacing(8)
+
+        # Autostart
+        self._autostart_cb = QCheckBox("Iniciar Ojo Hermano con Windows")
+        self._autostart_cb.setStyleSheet("color: #e2e8f0; font-size: 11px;")
+        try:
+            from core.autostart import is_enabled
+            self._autostart_cb.setChecked(is_enabled())
+        except Exception:
+            self._autostart_cb.setChecked(False)
+        self._autostart_cb.toggled.connect(self._on_autostart_toggle)
+        sys_lay.addWidget(self._autostart_cb)
+
+        # Disk health button
+        disk_btn = QPushButton("💾  Ver salud de discos (SMART)")
+        disk_btn.setStyleSheet(
+            "QPushButton { background:#1e293b; border:1px solid #334155;"
+            " border-radius:5px; color:#e2e8f0; padding:5px 10px; font-size:11px; }"
+            "QPushButton:hover { background:#334155; }"
+        )
+        disk_btn.clicked.connect(self._show_disk_health)
+        sys_lay.addWidget(disk_btn)
+
+        root.addWidget(sys_box)
+
         # ── Hotkeys (info) ─────────────────────────────────────────────
         info_lbl = QLabel("⌨  Overlay HUD:  Ctrl + Shift + O")
-        info_lbl.setStyleSheet("color:#64748b; font-size:11px; padding: 4px 0;")
+        info_lbl.setStyleSheet(f"color:{theme.MUTED}; font-size:11px; padding: 4px 0;")
         root.addWidget(info_lbl)
 
         # ── Buttons ────────────────────────────────────────────────────
@@ -160,34 +192,7 @@ class SettingsDialog(QDialog):
 
     # ------------------------------------------------------------------ style
     def _apply_dark(self):
-        self.setStyleSheet("""
-            QDialog { background: #0f172a; color: #e2e8f0; }
-            QGroupBox {
-                background: #1e293b; border: 1px solid #334155;
-                border-radius: 6px; margin-top: 10px;
-                padding-top: 6px; color: #94a3b8;
-                font-size: 11px; font-weight: bold;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin; subcontrol-position: top left;
-                left: 10px; padding: 0 4px;
-            }
-            QDoubleSpinBox, QSpinBox {
-                background: #0f172a; border: 1px solid #334155;
-                border-radius: 4px; color: #e2e8f0; padding: 3px 6px;
-                font-size: 11px;
-            }
-            QLabel { color: #e2e8f0; font-size: 11px; }
-            QDialogButtonBox QPushButton {
-                background: #1e293b; border: 1px solid #334155;
-                border-radius: 5px; color: #e2e8f0;
-                padding: 5px 16px; font-size: 11px;
-            }
-            QDialogButtonBox QPushButton:hover { background: #334155; }
-            QDialogButtonBox QPushButton:default {
-                border-color: #38bdf8; color: #38bdf8;
-            }
-        """)
+        self.setStyleSheet(DARK_STYLESHEET)
 
     # ------------------------------------------------------------------ actions
     def _collect(self) -> dict:
@@ -250,3 +255,41 @@ class SettingsDialog(QDialog):
         if dst:
             import shutil; shutil.copy2(src, dst)
             QMessageBox.information(self, "Export", f"Guardado en:\n{dst}")
+
+    def _on_autostart_toggle(self, checked: bool) -> None:
+        try:
+            from core.autostart import enable, disable
+            if checked:
+                ok = enable()
+            else:
+                ok = disable()
+            if not ok:
+                QMessageBox.warning(self, "Autostart",
+                                    "No se pudo modificar el registro de Windows.")
+        except Exception as e:
+            QMessageBox.warning(self, "Autostart", f"Error: {e}")
+
+    def _show_disk_health(self) -> None:
+        try:
+            from core.disk_monitor import get_disk_health
+            disks = get_disk_health()
+        except Exception as e:
+            QMessageBox.warning(self, "SMART", f"Error al leer discos: {e}"); return
+
+        if not disks:
+            QMessageBox.information(self, "SMART", "No se encontraron discos."); return
+
+        lines = []
+        for d in disks:
+            lines.append(f"💾  {d['name']} ({d['media_type']}, {d.get('size_gb','?')} GB)")
+            lines.append(f"   Estado: {d['health']}")
+            if d.get("temp_c"):    lines.append(f"   Temperatura: {d['temp_c']}°C")
+            if d.get("wear_pct"):  lines.append(f"   Desgaste: {d['wear_pct']}%")
+            if d.get("power_on_hours"): lines.append(f"   Horas encendido: {d['power_on_hours']} h")
+            if d.get("read_errors"):    lines.append(f"   Errores lectura: {d['read_errors']}")
+            lines.append("")
+
+        msg = "\n".join(lines).strip()
+        note = "\n\n⚠ Temperatura y desgaste requieren ejecutar como Administrador." \
+               if not any(d.get("temp_c") for d in disks) else ""
+        QMessageBox.information(self, "Salud de Discos (SMART)", msg + note)

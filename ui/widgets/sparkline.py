@@ -12,6 +12,8 @@ from PyQt6.QtCore import Qt, QPointF, QRectF, QSize
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
+from ui import theme
+
 
 class SparklineWidget(QWidget):
     def __init__(self, parent=None):
@@ -63,17 +65,19 @@ class SparklineWidget(QWidget):
         plot_w   = w - PAD_L - LEGEND_W
         plot_h   = h - PAD_T - PAD_B
 
-        # Background
-        painter.fillRect(0, 0, w, h, QColor("#0f172a"))
+        # Background — deep space black
+        painter.fillRect(0, 0, w, h, QColor(theme.BG))
 
         # Border around plot area
-        pen_border = QPen(QColor("#1e293b"))
+        pen_border = QPen(QColor(theme.BORDER))
         pen_border.setWidth(1)
         painter.setPen(pen_border)
         painter.drawRect(QRectF(PAD_L, PAD_T, plot_w, plot_h))
 
-        # Grid lines at 25 / 50 / 75
-        pen_grid = QPen(QColor("#1e293b"))
+        # Grid lines at 25 / 50 / 75 — BORDER at 20% opacity
+        grid_color = QColor(theme.BORDER)
+        grid_color.setAlpha(51)  # 20% of 255
+        pen_grid = QPen(grid_color)
         pen_grid.setWidth(1)
         painter.setPen(pen_grid)
         for pct in (25, 50, 75):
@@ -128,7 +132,7 @@ class SparklineWidget(QWidget):
             # Label + latest value
             data = list(s["data"])
             val_str = f"{data[-1]:.0f}" if data else "—"
-            painter.setPen(QColor("#94a3b8"))
+            painter.setPen(QColor(theme.MUTED))
             painter.drawText(
                 QRectF(lx + 10, ly, LEGEND_W - 14, 15),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
