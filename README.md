@@ -1,6 +1,6 @@
 # 👁 Ojo Hermano
 
-> *"I am always watching."* — Brother Eye, DC Comics
+> *"I am always watching."* 
 
 **Ojo Hermano** es una aplicación de escritorio para Windows que monitorea el hardware de tu PC en tiempo real, diseñada especialmente para detectar y diagnosticar crashes de GPU durante sesiones de juego.
 
