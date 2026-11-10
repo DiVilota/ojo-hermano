@@ -6,7 +6,7 @@ with peak temps, duration, avg FPS and TDR count.
 import datetime
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -26,6 +26,70 @@ def _fmt(val, suffix="", decimals=0, fallback="—"):
     if decimals == 0:
         return f"{int(round(val))}{suffix}"
     return f"{val:.{decimals}f}{suffix}"
+
+
+class _SessionBarChart(QWidget):
+    """Mini bar chart: peak GPU temp per session (last N sessions)."""
+
+    MAX_BARS = 20
+    WARN_TEMP  = 70.0
+    CRIT_TEMP  = 85.0
+    BAR_COLOR_OK   = QColor("#22c55e")
+    BAR_COLOR_WARN = QColor("#f59e0b")
+    BAR_COLOR_CRIT = QColor("#ef4444")
+    GRID_COLOR     = QColor("#1e293b")
+    TEXT_COLOR     = QColor("#64748b")
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._data: list[dict] = []
+        self.setMinimumHeight(90)
+        self.setToolTip("Pico de temperatura GPU por sesión (últimas 20)")
+
+    def set_sessions(self, sessions: list[dict]):
+        self._data = sessions[-self.MAX_BARS:]
+        self.update()
+
+    def paintEvent(self, _):  # noqa: N802
+        if not self._data:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        W, H = self.width(), self.height()
+        pad_l, pad_r, pad_t, pad_b = 36, 8, 8, 20
+
+        chart_w = W - pad_l - pad_r
+        chart_h = H - pad_t - pad_b
+        n       = len(self._data)
+        bar_w   = max(4, int(chart_w / n) - 2)
+        max_t   = 110.0
+
+        # grid lines at 70 and 85
+        p.setPen(QPen(QColor("#334155"), 1, Qt.PenStyle.DashLine))
+        for t_line in (70, 85):
+            y = pad_t + chart_h - int(chart_h * t_line / max_t)
+            p.drawLine(pad_l, y, W - pad_r, y)
+            p.setPen(QPen(self.TEXT_COLOR))
+            p.setFont(QFont("", 7))
+            p.drawText(2, y + 4, f"{t_line}°")
+            p.setPen(QPen(QColor("#334155"), 1, Qt.PenStyle.DashLine))
+
+        # bars
+        for i, s in enumerate(self._data):
+            t = s.get("peak_gpu_temp")
+            if t is None:
+                continue
+            bh = int(chart_h * min(t, max_t) / max_t)
+            x  = pad_l + i * (chart_w // n)
+            y  = pad_t + chart_h - bh
+            color = (self.BAR_COLOR_CRIT if t >= self.CRIT_TEMP
+                     else self.BAR_COLOR_WARN if t >= self.WARN_TEMP
+                     else self.BAR_COLOR_OK)
+            p.setBrush(QBrush(color))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(x, y, bar_w, bh, 2, 2)
+
+        p.end()
 
 
 class _StatCard(QWidget):
@@ -114,6 +178,13 @@ class SessionsPanel(QWidget):
         self._active_banner.hide()
         root.addWidget(self._active_banner)
 
+        # ── Bar chart ────────────────────────────────────────────────────
+        chart_lbl = QLabel("Pico GPU °C por sesión")
+        chart_lbl.setStyleSheet("color:#64748b; font-size:10px; font-weight:bold;")
+        root.addWidget(chart_lbl)
+        self._bar_chart = _SessionBarChart()
+        root.addWidget(self._bar_chart)
+
         # ── Table ───────────────────────────────────────────────────────
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
@@ -166,12 +237,14 @@ class SessionsPanel(QWidget):
         self._sessions = list(sessions)
         self._rebuild_table()
         self._update_summary()
+        self._bar_chart.set_sessions(self._sessions)
 
     def add_session(self, session: dict) -> None:
         """Add a newly completed session and refresh."""
         self._sessions.append(session)
         self._rebuild_table()
         self._update_summary()
+        self._bar_chart.set_sessions(self._sessions)
 
     def set_active(self, active: bool, start_ts: str = "") -> None:
         """Show/hide the 'gaming session active' banner."""

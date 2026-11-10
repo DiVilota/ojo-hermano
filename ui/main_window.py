@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QProgressBar,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTabWidget,
@@ -24,6 +25,7 @@ from PyQt6.QtWidgets import (
 from ui.widgets.gauge import GaugeWidget
 from ui.widgets.sparkline import SparklineWidget
 from ui.sessions_panel import SessionsPanel
+from ui.settings_dialog import SettingsDialog
 
 # ---------------------------------------------------------------------------
 # Dark stylesheet
@@ -150,6 +152,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Ojo Hermano")
         self.setMinimumSize(820, 720)
         self.setStyleSheet(DARK_STYLE)
+        self._settings_dialog: "SettingsDialog | None" = None
+        self._settings: dict = SettingsDialog.DEFAULTS.copy()
         self._build_ui()
 
     # ------------------------------------------------------------------ build
@@ -173,6 +177,22 @@ class MainWindow(QMainWindow):
         # Tab 2: Sessions
         self._sessions_panel = SessionsPanel()
         self._tabs.addTab(self._sessions_panel, "🎮  Sesiones")
+
+        # Tab 3: Settings
+        settings_btn_widget = QWidget()
+        settings_lay = QVBoxLayout(settings_btn_widget)
+        settings_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        open_settings_btn = QPushButton("⚙  Abrir configuración")
+        open_settings_btn.setStyleSheet(
+            "QPushButton{background:#1e293b;border:1px solid #334155;"
+            "border-radius:6px;color:#38bdf8;padding:8px 20px;font-size:12px;font-weight:bold;}"
+            "QPushButton:hover{background:#334155;}"
+        )
+        open_settings_btn.setFixedWidth(220)
+        open_settings_btn.clicked.connect(self._open_settings)
+        settings_lay.addSpacing(20)
+        settings_lay.addWidget(open_settings_btn)
+        self._tabs.addTab(settings_btn_widget, "⚙  Ajustes")
 
     # ------------------------------------------------------------------ dashboard
     def _build_dashboard(self, parent: QWidget):
@@ -217,12 +237,23 @@ class MainWindow(QMainWindow):
         )
         self._session_badge.hide()
 
+        # Predictive alert banner
+        self._alert_banner = QLabel()
+        self._alert_banner.setStyleSheet(
+            "background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);"
+            "border-radius: 7px; color: #f87171; font-size: 11px; font-weight: bold;"
+            "padding: 6px 12px;"
+        )
+        self._alert_banner.setWordWrap(True)
+        self._alert_banner.hide()
+
         hdr_lay.addWidget(title)
         hdr_lay.addWidget(self._dot)
         hdr_lay.addWidget(self._session_badge)
         hdr_lay.addStretch()
         hdr_lay.addWidget(self._ts)
         root.addWidget(hdr)
+        root.addWidget(self._alert_banner)
 
         # ── Gauge row ───────────────────────────────────────────────────
         gauge_card = QWidget()
@@ -487,6 +518,36 @@ class MainWindow(QMainWindow):
 
     def load_sessions(self, sessions: list) -> None:
         self._sessions_panel.load_sessions(sessions)
+
+    # ------------------------------------------------------------------ predictive alerts
+    def on_trend_alert(self, alert: dict) -> None:
+        """Show predictive warning banner from TrendAnalyzer."""
+        msg = alert.get("message", "")
+        icon = {"rising": "🌡️", "sustained": "🔥", "throttle": "⚡"}.get(
+            alert.get("type", ""), "⚠️"
+        )
+        self._alert_banner.setText(f"{icon}  {msg}")
+        self._alert_banner.show()
+        # Switch to dashboard if on another tab
+        if self._tabs.currentIndex() != 0:
+            self._tabs.setCurrentIndex(0)
+
+    def on_alert_cleared(self, _: dict) -> None:
+        self._alert_banner.hide()
+
+    # ------------------------------------------------------------------ settings
+    def _open_settings(self) -> None:
+        dlg = SettingsDialog(current=self._settings, parent=self)
+        dlg.settings_changed.connect(self._on_settings_changed)
+        dlg.exec()
+
+    def _on_settings_changed(self, s: dict) -> None:
+        self._settings = s
+        self.settings_changed_signal.emit(s)
+
+    # Signal for main.py to pick up settings changes
+    from PyQt6.QtCore import pyqtSignal as _sig
+    settings_changed_signal = _sig(dict)
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, event):  # noqa: N802

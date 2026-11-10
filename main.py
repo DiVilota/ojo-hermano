@@ -103,7 +103,9 @@ def main() -> None:
     tray       = TrayManager(main_win)
 
     from core.session_tracker import SessionTracker   # noqa: PLC0415
+    from core.trend_analyzer  import TrendAnalyzer    # noqa: PLC0415
     session_tracker = SessionTracker()
+    trend_analyzer  = TrendAnalyzer()
 
     # ── Signal wiring ─────────────────────────────────────────────────
     # Hardware data → store + UI + overlay + session tracker
@@ -111,6 +113,26 @@ def main() -> None:
     monitor.data_ready.connect(main_win.update_data)
     monitor.data_ready.connect(overlay.update_data)
     monitor.data_ready.connect(session_tracker.on_data)
+    monitor.data_ready.connect(trend_analyzer.on_data)
+
+    # Trend analyzer → UI + tray
+    trend_analyzer.temp_rising.connect(main_win.on_trend_alert)
+    trend_analyzer.temp_sustained.connect(main_win.on_trend_alert)
+    trend_analyzer.throttle.connect(main_win.on_trend_alert)
+    trend_analyzer.alert_cleared.connect(main_win.on_alert_cleared)
+    trend_analyzer.temp_rising.connect(
+        lambda a: tray.notify("⚠ GPU temperatura subiendo", a.get("message", "")[:120])
+    )
+    trend_analyzer.throttle.connect(
+        lambda a: tray.notify("⚡ Throttling detectado", a.get("message", "")[:120])
+    )
+
+    # Settings → analyzers
+    main_win.settings_changed_signal.connect(trend_analyzer.update_settings)
+    main_win.settings_changed_signal.connect(
+        lambda s: setattr(session_tracker, "LOAD_THRESHOLD",
+                          float(s.get("session_threshold", 15.0)))
+    )
 
     # Session tracker → UI + overlay + store
     session_tracker.session_started.connect(main_win.on_session_started)
