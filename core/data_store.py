@@ -9,8 +9,9 @@ from collections import deque
 
 
 class DataStore:
-    CSV_PATH = "C:/Users/diego/OjoHermano/hardware_log.csv"
-    TDR_PATH = "C:/Users/diego/OjoHermano/tdr_events.json"
+    CSV_PATH      = "C:/Users/diego/OjoHermano/hardware_log.csv"
+    TDR_PATH      = "C:/Users/diego/OjoHermano/tdr_events.json"
+    SESSIONS_PATH = "C:/Users/diego/OjoHermano/sessions.json"
 
     # Flat fields written to CSV (excludes nested cpu_threads list)
     CSV_FIELDS = [
@@ -27,7 +28,9 @@ class DataStore:
     def __init__(self, max_history: int = 600):
         self._buf: deque[dict] = deque(maxlen=max_history)
         self._tdr_events: list[dict] = []
+        self._sessions:   list[dict] = []
         self.load_tdr()
+        self.load_sessions()
 
     # ------------------------------------------------------------------
     def push(self, snapshot: dict) -> None:
@@ -66,6 +69,34 @@ class DataStore:
         except Exception as exc:
             print(f"[DataStore] Could not load TDR events: {exc}")
             self._tdr_events = []
+
+    # ------------------------------------------------------------------
+    @property
+    def sessions(self) -> list[dict]:
+        return self._sessions
+
+    def add_session(self, session: dict) -> None:
+        self._sessions.append(session)
+        self._save_sessions()
+
+    def load_sessions(self) -> None:
+        if not os.path.exists(self.SESSIONS_PATH):
+            return
+        try:
+            with open(self.SESSIONS_PATH, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, list):
+                self._sessions = data
+        except Exception as exc:
+            print(f"[DataStore] Could not load sessions: {exc}")
+            self._sessions = []
+
+    def _save_sessions(self) -> None:
+        try:
+            with open(self.SESSIONS_PATH, "w", encoding="utf-8") as fh:
+                json.dump(self._sessions, fh, indent=2)
+        except Exception as exc:
+            print(f"[DataStore] Could not save sessions: {exc}")
 
     # ------------------------------------------------------------------
     def _write_csv(self, snapshot: dict) -> None:

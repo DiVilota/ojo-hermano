@@ -102,11 +102,22 @@ def main() -> None:
     overlay    = OverlayHUD()
     tray       = TrayManager(main_win)
 
+    from core.session_tracker import SessionTracker   # noqa: PLC0415
+    session_tracker = SessionTracker()
+
     # ── Signal wiring ─────────────────────────────────────────────────
-    # Hardware data → store + UI + overlay
+    # Hardware data → store + UI + overlay + session tracker
     monitor.data_ready.connect(store.push)
     monitor.data_ready.connect(main_win.update_data)
     monitor.data_ready.connect(overlay.update_data)
+    monitor.data_ready.connect(session_tracker.on_data)
+
+    # Session tracker → UI + overlay + store
+    session_tracker.session_started.connect(main_win.on_session_started)
+    session_tracker.session_started.connect(overlay.on_session_started)
+    session_tracker.session_ended.connect(main_win.on_session_ended)
+    session_tracker.session_ended.connect(overlay.on_session_ended)
+    session_tracker.session_ended.connect(store.add_session)
 
     # TDR events → store + UI + tray balloon
     watchdog.tdr_detected.connect(store.add_tdr)
@@ -121,6 +132,9 @@ def main() -> None:
     # Pre-populate TDR list from persisted JSON
     for ev in store.tdr_events:
         main_win.add_tdr_event(ev)
+
+    # Pre-populate sessions from persisted JSON
+    main_win.load_sessions(store.sessions)
 
     # ── Global hotkey ─────────────────────────────────────────────────
     _start_hotkey_thread(overlay)

@@ -85,11 +85,13 @@ class OverlayHUD(QWidget):
         self._fps      = _MetricWidget("🎮", "FPS")
         self._cpu      = _MetricWidget("⚡", "CPU %")
         self._ram      = _MetricWidget("🧠", "RAM %")
+        self._session  = _MetricWidget("⏱", "Sesión")
+        self._session_start: "datetime.datetime | None" = None
 
         # Thin vertical dividers
-        for i, m in enumerate([self._gpu_temp, self._fps, self._cpu, self._ram]):
+        for i, m in enumerate([self._gpu_temp, self._fps, self._cpu, self._ram, self._session]):
             lay.addWidget(m)
-            if i < 3:
+            if i < 4:
                 div = QLabel()
                 div.setFixedWidth(1)
                 div.setStyleSheet("background: #334155;")
@@ -99,7 +101,7 @@ class OverlayHUD(QWidget):
 
     # ------------------------------------------------------------------
     def sizeHint(self) -> QSize:
-        return QSize(316, 76)
+        return QSize(390, 76)
 
     # ------------------------------------------------------------------
     def _position(self):
@@ -155,6 +157,17 @@ class OverlayHUD(QWidget):
             self._heat(rl),
         )
 
+        # Session elapsed time
+        import datetime
+        if self._session_start is not None:
+            elapsed = datetime.datetime.now() - self._session_start
+            m, sec = divmod(int(elapsed.total_seconds()), 60)
+            h, m   = divmod(m, 60)
+            txt    = f"{h}:{m:02d}:{sec:02d}" if h else f"{m:02d}:{sec:02d}"
+            self._session.set_value(txt, "#22c55e")
+        else:
+            self._session.set_value("—", "#64748b")
+
     # ------------------------------------------------------------------
     @pyqtSlot()
     def toggle(self):
@@ -164,3 +177,13 @@ class OverlayHUD(QWidget):
         else:
             self._position()
             self.show()
+
+    @pyqtSlot(dict)
+    def on_session_started(self, payload: dict) -> None:
+        import datetime
+        self._session_start = datetime.datetime.now()
+
+    @pyqtSlot(dict)
+    def on_session_ended(self, session: dict) -> None:
+        self._session_start = None
+        self._session.set_value("—", "#64748b")

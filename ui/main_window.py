@@ -16,12 +16,14 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QScrollArea,
     QSizePolicy,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from ui.widgets.gauge import GaugeWidget
 from ui.widgets.sparkline import SparklineWidget
+from ui.sessions_panel import SessionsPanel
 
 # ---------------------------------------------------------------------------
 # Dark stylesheet
@@ -81,8 +83,28 @@ QScrollBar::handle:vertical {
     border-radius: 3px;
     min-height: 20px;
 }
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    height: 0px;
+QTabWidget::pane {
+    border: 1px solid #334155;
+    border-radius: 6px;
+}
+QTabBar::tab {
+    background: #1e293b;
+    color: #64748b;
+    padding: 6px 18px;
+    border: 1px solid #334155;
+    border-bottom: none;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    font-size: 11px;
+    font-weight: bold;
+}
+QTabBar::tab:selected {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-bottom: 2px solid #38bdf8;
+}
+QTabBar::tab:hover:!selected {
+    color: #94a3b8;
 }
 """
 
@@ -136,6 +158,24 @@ class MainWindow(QMainWindow):
         central.setObjectName("centralWidget")
         self.setCentralWidget(central)
 
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        # ── Tab widget ──────────────────────────────────────────────────
+        self._tabs = QTabWidget()
+        outer.addWidget(self._tabs)
+
+        # Tab 1: Dashboard
+        dashboard_widget = QWidget()
+        self._tabs.addTab(dashboard_widget, "📊  Dashboard")
+        self._build_dashboard(dashboard_widget)
+
+        # Tab 2: Sessions
+        self._sessions_panel = SessionsPanel()
+        self._tabs.addTab(self._sessions_panel, "🎮  Sesiones")
+
+    # ------------------------------------------------------------------ dashboard
+    def _build_dashboard(self, parent: QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -146,7 +186,7 @@ class MainWindow(QMainWindow):
         root.setSpacing(10)
         scroll.setWidget(content)
 
-        outer = QVBoxLayout(central)
+        outer = QVBoxLayout(parent)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
@@ -168,8 +208,18 @@ class MainWindow(QMainWindow):
         self._ts = QLabel("—")
         self._ts.setStyleSheet("color: #64748b; font-size: 11px;")
 
+        # Session active badge
+        self._session_badge = QLabel("🎮 Sesión activa")
+        self._session_badge.setStyleSheet(
+            "background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.4);"
+            "border-radius: 10px; color: #22c55e; font-size: 10px; font-weight: bold;"
+            "padding: 2px 10px;"
+        )
+        self._session_badge.hide()
+
         hdr_lay.addWidget(title)
         hdr_lay.addWidget(self._dot)
+        hdr_lay.addWidget(self._session_badge)
         hdr_lay.addStretch()
         hdr_lay.addWidget(self._ts)
         root.addWidget(hdr)
@@ -420,6 +470,23 @@ class MainWindow(QMainWindow):
         item = QListWidgetItem(f"⚠  [{ts}]  ID {eid}: {desc}")
         item.setForeground(QColor("#ef4444"))
         self._tdr_list.insertItem(0, item)
+
+    # ------------------------------------------------------------------ session slots
+    def on_session_started(self, payload: dict) -> None:
+        ts = payload.get("start", "")
+        self._session_badge.setText(f"🎮 Jugando desde {ts[11:16]}")
+        self._session_badge.show()
+        self._sessions_panel.set_active(True, ts)
+
+    def on_session_ended(self, session: dict) -> None:
+        self._session_badge.hide()
+        self._sessions_panel.set_active(False)
+        self._sessions_panel.add_session(session)
+        # Switch to Sessions tab briefly to show the new entry
+        self._tabs.setCurrentIndex(1)
+
+    def load_sessions(self, sessions: list) -> None:
+        self._sessions_panel.load_sessions(sessions)
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, event):  # noqa: N802
