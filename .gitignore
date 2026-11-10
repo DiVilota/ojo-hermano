@@ -1,0 +1,51 @@
+# ── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual envs ─────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+
+# ── Data / logs ───────────────────────────────────────────────────
+hardware_log.csv
+tdr_events.json
+live.json
+*.log
+
+# ── LibreHardwareMonitor DLLs (too large / platform-specific) ────
+*.dll
+*.sys
+*.pdb
+*.xml
+de/
+es/
+fr/
+it/
+ja/
+pl/
+ru/
+sv/
+tr/
+zh-CN/
+zh-Hant/
+LibreHardwareMonitor.exe
+LibreHardwareMonitor.exe.config
+
+# ── IDE / OS ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,4 @@
+PyQt6>=6.7.0
+pythonnet>=3.0.0
+keyboard>=0.13.5
+psutil>=6.0.0
